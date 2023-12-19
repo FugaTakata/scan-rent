@@ -1,6 +1,7 @@
 {
   "name": "functions",
   "scripts": {
+    "prepare": "PLAYWRIGHT_BROWSERS_PATH=0 playwright install chromium",
     "lint": "eslint --ext .js,.ts .",
     "build": "tsc",
     "build:watch": "tsc --watch",

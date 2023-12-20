@@ -1,5 +1,9 @@
-function App() {
-  return <></>;
-}
+// Import styles of packages that you've installed.
+// All packages except `@mantine/hooks` require styles imports
+import "@mantine/core/styles.css";
 
-export default App;
+import { MantineProvider } from "@mantine/core";
+
+export default function App() {
+  return <MantineProvider>{/* Your app here */}</MantineProvider>;
+}

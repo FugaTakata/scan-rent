@@ -30,8 +30,7 @@ const bucket = getStorage(app).bucket();
 export const scrapeSuumo = onRequest(
   { timeoutSeconds: 100, memory: "1GiB" },
   async (request, response) => {
-    const targetUrl = request.body.targetUrl
-
+    const targetUrl = request.body.data.targetUrl;
 
     const browser = await chromium.launch();
     const page = await browser.newPage();
@@ -81,11 +80,12 @@ export const scrapeSuumo = onRequest(
       })
     );
 
-    await db.collection("rental_houses").doc(docId).set({
+    const data = {
       title,
       publicUrls,
-    });
+    };
+    await db.collection("rental_houses").doc(docId).set(data);
 
-    response.send(title);
+    response.send({ data });
   }
 );

@@ -7,25 +7,31 @@
  * See a full list of supported triggers at https://firebase.google.com/docs/functions
  */
 
-import {onRequest} from "firebase-functions/v2/https";
+import { onRequest } from "firebase-functions/v2/https";
 import * as logger from "firebase-functions/logger";
-import {chromium} from "playwright";
+import { chromium } from "playwright";
+import { initializeApp } from "firebase-admin/app";
+import { getFirestore } from "firebase-admin/firestore";
+import { getStorage } from "firebase-admin/storage";
+import { randomUUID } from "crypto";
 
 // Start writing functions
 // https://firebase.google.com/docs/functions/typescript
 
 export const helloWorld = onRequest((request, response) => {
-  logger.info("Hello logs!", {structuredData: true});
+  logger.info("Hello logs!", { structuredData: true });
   response.send("Hello from Firebase!");
 });
 
+const app = initializeApp();
+const db = getFirestore(app);
+const bucket = getStorage(app).bucket();
 
 export const scrapeSuumo = onRequest(
-  {timeoutSeconds: 100, memory: "1GiB"},
+  { timeoutSeconds: 100, memory: "1GiB" },
   async (request, response) => {
-    // const targetUrl = "SUUMOの賃貸物件の情報が載ったページのURL";
-    const targetUrl =
-      "https://suumo.jp/chintai/jnc_000085234830/?bc=100349846901";
+    const targetUrl = request.body.targetUrl
+
 
     const browser = await chromium.launch();
     const page = await browser.newPage();
@@ -43,24 +49,43 @@ export const scrapeSuumo = onRequest(
         await page.locator("#js-view_gallery-list li a img").all()
       ).map((img) => img.getAttribute("src"))
     );
-    const imgs = await Promise.all(
+    const images = await Promise.all(
       imgUrls.map(async (imgUrl) => {
         const response = await fetch(imgUrl as string);
         const arrayBuffer = await response.arrayBuffer();
         const buffer = Buffer.from(arrayBuffer);
         const contentType = response.headers.get("Content-Type");
-        const base64 = `data:${contentType};base64,${buffer.toString(
-          "base64"
-        )}`;
 
-        return base64;
+        return {
+          buffer,
+          contentType,
+        };
       })
     );
 
     await browser.close();
 
-    logger.info(title, {structuredData: true});
-    logger.info(imgs, {structuredData: true});
+    const docId = db.collection("rental_houses").doc().id;
+
+    const publicUrls = await Promise.all(
+      images.map(async (img) => {
+        const imgId = randomUUID();
+        const extension = img.contentType?.replace("image/", "");
+        const path = `${docId}/${imgId}.${extension}`;
+        const file = bucket.file(path);
+        const publicUrl = file.publicUrl();
+
+        await bucket.file(path).save(img.buffer);
+
+        return publicUrl;
+      })
+    );
+
+    await db.collection("rental_houses").doc(docId).set({
+      title,
+      publicUrls,
+    });
+
     response.send(title);
   }
 );
